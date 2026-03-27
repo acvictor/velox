@@ -53,6 +53,7 @@ const auto& filterKindNames() {
       {FilterKind::kHugeintValuesUsingHashTable, "HugeintValuesUsingHashTable"},
       {FilterKind::kBigintValuesUsingBloomFilter,
        "BigintValuesUsingBloomFilter"},
+      {FilterKind::kCustomBloomFilter, "CustomBloomFilter"},
   };
   return kNames;
 }
@@ -1817,6 +1818,7 @@ std::unique_ptr<Filter> BigintRange::mergeWith(const Filter* other) const {
     case FilterKind::kBigintValuesUsingBitmask:
     case FilterKind::kBigintValuesUsingHashTable:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       return other->mergeWith(this);
     case FilterKind::kBigintMultiRange: {
       auto otherMultiRange = dynamic_cast<const BigintMultiRange*>(other);
@@ -1952,6 +1954,7 @@ std::unique_ptr<Filter> NegatedBigintRange::mergeWith(
     case FilterKind::kBigintValuesUsingHashTable:
     case FilterKind::kBigintValuesUsingBitmask:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       return other->mergeWith(this);
     case FilterKind::kNegatedBigintValuesUsingHashTable:
     case FilterKind::kNegatedBigintValuesUsingBitmask: {
@@ -2008,6 +2011,7 @@ std::unique_ptr<Filter> BigintValuesUsingHashTable::mergeWith(
     }
     case FilterKind::kBigintValuesUsingBitmask:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       return other->mergeWith(this);
     case FilterKind::kBigintMultiRange: {
       auto otherMultiRange = dynamic_cast<const BigintMultiRange*>(other);
@@ -2082,6 +2086,7 @@ std::unique_ptr<Filter> BigintValuesUsingBitmask::mergeWith(
     case FilterKind::kAlwaysFalse:
     case FilterKind::kIsNull:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       return other->mergeWith(this);
     case FilterKind::kIsNotNull:
       return std::make_unique<BigintValuesUsingBitmask>(*this, false);
@@ -2173,6 +2178,7 @@ std::unique_ptr<Filter> NegatedBigintValuesUsingHashTable::mergeWith(
     case FilterKind::kBigintRange:
     case FilterKind::kBigintMultiRange:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       return other->mergeWith(this);
     case FilterKind::kNegatedBigintValuesUsingHashTable: {
       auto otherNegated =
@@ -2213,6 +2219,7 @@ std::unique_ptr<Filter> NegatedBigintValuesUsingBitmask::mergeWith(
     case FilterKind::kNegatedBigintRange:
     case FilterKind::kBigintMultiRange:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       return other->mergeWith(this);
     case FilterKind::kNegatedBigintValuesUsingHashTable: {
       auto otherHashTable =
@@ -2253,6 +2260,7 @@ std::unique_ptr<Filter> BigintMultiRange::mergeWith(const Filter* other) const {
     case FilterKind::kBigintValuesUsingBitmask:
     case FilterKind::kBigintValuesUsingHashTable:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       return other->mergeWith(this);
     case FilterKind::kBigintMultiRange: {
       std::vector<std::unique_ptr<BigintRange>> newRanges;
@@ -2362,6 +2370,7 @@ std::unique_ptr<Filter> BigintValuesUsingBloomFilter::mergeWith(
     case FilterKind::kNegatedBigintValuesUsingBitmask:
     case FilterKind::kBigintMultiRange:
     case FilterKind::kBigintValuesUsingBloomFilter:
+    case FilterKind::kCustomBloomFilter:
       // Bloom filter allows false positive so dropping it will not affect
       // correctness.  We can do so if we think merging will not improve
       // performance.
