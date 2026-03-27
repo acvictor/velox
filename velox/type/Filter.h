@@ -53,7 +53,7 @@ enum class FilterKind {
   kTimestampRange,
   kHugeintValuesUsingHashTable,
   kBigintValuesUsingBloomFilter,
-  kCustomBloomFilter,
+  kCustomFilter,
 };
 
 VELOX_DECLARE_ENUM_NAME(FilterKind);

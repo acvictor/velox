@@ -2137,5 +2137,115 @@ TEST(FilterTest, timestampRange) {
       Timestamp(5, 123000000), Timestamp(30, 123000000), true));
 }
 
+class StubCustomFilter final : public Filter {
+ public:
+  explicit StubCustomFilter(folly::F14FastSet<int64_t> values, bool nullAllowed)
+      : Filter(true, nullAllowed, FilterKind::kCustomFilter),
+        values_(std::move(values)) {}
+
+  bool testInt64(int64_t value) const final {
+    return values_.contains(value);
+  }
+
+  bool testInt64Range(int64_t, int64_t, bool) const final {
+    return true;
+  }
+
+  std::unique_ptr<Filter> clone(
+      std::optional<bool> nullAllowed) const override {
+    return std::make_unique<StubCustomFilter>(
+        values_, nullAllowed.value_or(nullAllowed_));
+  }
+
+  std::unique_ptr<Filter> mergeWith(const Filter* other) const override {
+    return other->clone(nullAllowed_ && other->testNull());
+  }
+
+  bool testingEquals(const Filter& other) const override {
+    return dynamic_cast<const StubCustomFilter*>(&other) != nullptr;
+  }
+
+  folly::dynamic serialize() const override {
+    VELOX_UNSUPPORTED("Serialization is not supported");
+  }
+
+ private:
+  folly::F14FastSet<int64_t> values_;
+};
+
+TEST(FilterTest, customFilterKind) {
+  StubCustomFilter filter({2, 3, 5, 7}, false);
+  ASSERT_EQ(filter.kind(), FilterKind::kCustomFilter);
+  ASSERT_EQ(filter.kindName(), "CustomFilter");
+  ASSERT_TRUE(filter.testInt64(3));
+  ASSERT_FALSE(filter.testInt64(4));
+  ASSERT_FALSE(filter.testNull());
+
+  auto cloned = filter.clone(true);
+  ASSERT_TRUE(cloned->testNull());
+  ASSERT_TRUE(cloned->testInt64(5));
+}
+
+TEST(FilterTest, customFilterMergeWith) {
+  StubCustomFilter filter({2, 3, 5, 7}, false);
+  {
+    SCOPED_TRACE("BigintRange");
+    BigintRange other(2, 5, true);
+    auto merged = other.mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+  {
+    SCOPED_TRACE("NegatedBigintRange");
+    NegatedBigintRange other(4, 6, true);
+    auto merged = other.mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+  {
+    SCOPED_TRACE("BigintValuesUsingHashTable");
+    std::vector<int64_t> vals = {1, 3, 5, 9};
+    BigintValuesUsingHashTable other(vals.front(), vals.back(), vals, true);
+    auto merged = other.mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+  {
+    SCOPED_TRACE("BigintValuesUsingBitmask");
+    std::vector<int64_t> vals = {0, 3, 6, 9};
+    BigintValuesUsingBitmask other(vals.front(), vals.back(), vals, true);
+    auto merged = other.mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+  {
+    SCOPED_TRACE("BigintValuesUsingBloomFilter");
+    BigintValuesUsingBloomFilter other(4, true);
+    for (int64_t x : {2, 3, 5, 7}) {
+      other.insert(x);
+    }
+    auto merged = other.mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+  {
+    SCOPED_TRACE("NegatedBigintValuesUsingHashTable");
+    std::vector<int64_t> vals = {1, 4, 6, 9};
+    NegatedBigintValuesUsingHashTable other(
+        vals.front(), vals.back(), vals, true);
+    auto merged = other.mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+  {
+    SCOPED_TRACE("NegatedBigintValuesUsingBitmask");
+    std::vector<int64_t> vals = {1, 4, 6, 9};
+    NegatedBigintValuesUsingBitmask other(
+        vals.front(), vals.back(), vals, true);
+    auto merged = other.mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+  {
+    SCOPED_TRACE("BigintMultiRange");
+    auto other = bigintOr(between(1, 3), between(5, 7));
+    auto merged = other->mergeWith(&filter);
+    ASSERT_NE(merged, nullptr);
+  }
+}
+
 } // namespace
 } // namespace facebook::velox
